@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Cognitive Paradox · EP04 照片墙</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1a1510;
+      --paper: #e8dcc4;
+      --cork: #6b4e32;
+      --cork-deep: #3d2818;
+      --lamp: #f4d9a0;
+      --red-thread: #b22222;
+      --red-dim: #5c2a2a;
+      --chalk: #c9bcaa;
+      --shadow: rgba(0, 0, 0, 0.55);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: "Noto Serif", "Georgia", serif;
+      background: #0a0a0a;
+      color: var(--chalk);
+    }
+
+    .app-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100vw;
+      height: 100vh;
+      max-width: 430px;
+      max-height: 850px;
+      background: radial-gradient(ellipse 120% 80% at 50% 0%, #2a2218 0%, #0d0a08 55%, #050403 100%);
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    @media (min-width: 431px) and (min-height: 851px) {
+      .app-container {
+        width: 430px;
+        height: 850px;
+        border-radius: 16px;
+      }
+    }
+
+    /* Desk lamp vignette */
+    .lamp-overlay {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 55% 50% at 52% 38%,
+          rgba(244, 217, 160, 0.14) 0%,
+          rgba(244, 217, 160, 0.04) 35%,
+          transparent 62%),
+        radial-gradient(ellipse 100% 100% at 50% 50%,
+          transparent 40%,
+          rgba(0, 0, 0, 0.65) 100%);
+      z-index: 40;
+    }
+
+    .hud {
+      position: absolute;
+      top: 1.5rem;
+      left: 0;
+      width: 100%;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      text-align: center;
+      padding: 0 1rem;
+    }
+
+    .hud-title {
+      font-size: clamp(0.7rem, 3.5vw, 0.85rem);
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      opacity: 0.75;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .hearts {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .heart {
+      position: relative;
+      width: 1.2rem;
+      height: 1.2rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 28 C16 28 3 20 3 10 C3 4 10 2 16 9 C22 2 29 4 29 10 C29 20 16 28 16 28 Z' fill='%23a63a3a' stroke='%232a1515' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M7 10 C7 6 11 5 14 8' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+      transition: opacity 0.35s ease, filter 0.35s ease, transform 0.35s ease;
+    }
+
+    .heart.lost {
+      opacity: 0.3;
+      filter: grayscale(1) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+      transform: scale(0.85);
+    }
+
+    .hud-hint {
+      max-width: 100%;
+      font-size: clamp(0.7rem, 3vw, 0.8rem);
+      opacity: 0.82;
+      line-height: 1.4;
+    }
+
+    .board-frame {
+      position: absolute;
+      inset: 0;
+      border: 6px solid #2a221c;
+      background: linear-gradient(145deg, #4a3c32 0%, #2a221c 45%, #1a1512 100%);
+      padding: 6px;
+    }
+
+    .board-frame::before {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 2px;
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.06);
+      pointer-events: none;
+    }
+
+    .board {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 2px;
+      background-color: var(--cork);
+      background-image: url("./图片资产/wall.png");
+      background-size: cover;
+      background-position: center;
+      overflow: hidden;
+    }
+
+    .board-scratches {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      opacity: 0.15;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpath d='M10 80 Q40 20 100 90' stroke='%23000' fill='none' stroke-width='0.5'/%3E%3C/svg%3E");
+      mix-blend-mode: multiply;
+    }
+
+    #thread-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #thread-layer line {
+      stroke: var(--red-thread);
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 3px rgba(178, 34, 34, 0.5));
+      opacity: 0.92;
+    }
+
+    #thread-layer line.dim {
+      stroke: #666;
+      opacity: 0.35;
+      filter: none;
+    }
+
+    .lab-note {
+      display: none; /* Hidden on mobile to save space */
+    }
+
+    .polaroid {
+      position: absolute;
+      width: clamp(85px, 26vw, 120px);
+      padding: 0.35rem 0.35rem 1.5rem;
+      background: linear-gradient(180deg, #faf6ef 0%, #ebe4d6 100%);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.5) inset,
+        0 10px 20px rgba(0, 0, 0, 0.45),
+        0 2px 4px rgba(0, 0, 0, 0.25);
+      cursor: grab;
+      z-index: 10;
+      user-select: none;
+      touch-action: none;
+      transition: box-shadow 0.2s ease, filter 0.2s ease;
+    }
+
+    .polaroid:active { cursor: grabbing; }
+
+    .polaroid.dragging {
+      z-index: 100;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.4) inset,
+        0 20px 40px rgba(0, 0, 0, 0.55);
+      filter: brightness(1.05);
+    }
+
+    .polaroid.merged {
+      box-shadow: 
+        0 0 0 2px rgba(178, 34, 34, 0.4),
+        0 10px 20px rgba(0, 0, 0, 0.5);
+      z-index: 20;
+    }
+
+    .polaroid.merged .thumb {
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .polaroid.merged .thumb-inner {
+      display: none; /* Hide emoji for merged cards since we have images */
+    }
+
+    .polaroid.merged .caption {
+      font-weight: bold;
+      color: #5c1a1a;
+    }
+
+    .polaroid.tint-blue { background: linear-gradient(180deg, #e6f0f5 0%, #d0dfe8 100%); }
+    .polaroid.tint-red { background: linear-gradient(180deg, #f5e6e6 0%, #e8d0d0 100%); }
+    .polaroid.tint-green { background: linear-gradient(180deg, #eaf2e6 0%, #d4e3ce 100%); }
+
+    .pin {
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #e8e8e8, #6a6a6a 45%, #2a2a2a);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+      z-index: 2;
+    }
+
+    .thumb {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #222;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .thumb-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.8rem, 6vw, 2.6rem);
+      opacity: 0.9;
+    }
+
+    .caption {
+      position: absolute;
+      bottom: 0.25rem;
+      left: 0.35rem;
+      right: 0.35rem;
+      font-family: "Caveat", cursive;
+      font-size: clamp(0.75rem, 3.5vw, 0.95rem);
+      color: #1a1510;
+      line-height: 1.15;
+      text-align: center;
+    }
+
+    .question-mark {
+      position: absolute;
+      bottom: 1.5rem;
+      right: 0.3rem;
+      font-family: "Caveat", cursive;
+      font-size: 1.2rem;
+      color: #111;
+      opacity: 0.55;
+      transform: rotate(-8deg);
+    }
+
+    /* Card positions (percent of board) */
+    #c-viper-tattoo { left: 8%; top: 18%; transform: rotate(-4deg); }
+    #c-hale-needle { left: 52%; top: 22%; transform: rotate(5deg); }
+    #c-lab-report { left: 10%; top: 42%; transform: rotate(3deg); }
+    #c-elephant-doc { left: 55%; top: 46%; transform: rotate(-6deg); }
+    #c-liam-notice { left: 12%; top: 66%; transform: rotate(-3deg); }
+    #c-poisoned-cup { left: 50%; top: 70%; transform: rotate(7deg); }
+
+    /* VN Dialogue System */
+    .vn-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .vn-overlay.active {
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .vn-portrait {
+      position: absolute;
+      bottom: 0;
+      width: 65%;
+      max-width: 320px;
+      height: 70%;
+      z-index: 1;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      background-size: contain;
+      background-position: bottom center;
+      background-repeat: no-repeat;
+      opacity: 0;
+      transform: translateY(20px);
+      filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+    }
+
+    .vn-portrait.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .vn-portrait.arthur {
+      left: -20%;
+      background-image: url('./图片资产/Arthur.png');
+    }
+
+    .vn-portrait.chloe {
+      right: -10%;
+      background-image: url('./图片资产/chloe.png');
+    }
+
+    .vn-dialogue-box {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 35%;
+      min-height: 200px;
+      background: linear-gradient(180deg, rgba(15,12,10,0.95) 0%, rgba(5,4,3,1) 100%);
+      border-top: 1px solid rgba(244, 217, 160, 0.2);
+      z-index: 2;
+      padding: 1.5rem 12%;
+      color: #e8dcc4;
+      cursor: pointer;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+    }
+
+    .vn-name {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 1.2rem;
+      letter-spacing: 0.15em;
+      color: #f4d9a0;
+      margin-bottom: 0.8rem;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px rgba(244, 217, 160, 0.3);
+    }
+
+    .vn-text {
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 1000px;
+      font-family: "Noto Serif", serif;
+    }
+
+    .vn-next {
+      position: absolute;
+      bottom: 1.5rem;
+      right: 8%;
+      font-size: 1.2rem;
+      color: #f4d9a0;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Overlays */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 4, 3, 0.88);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .overlay-card {
+      max-width: 88%;
+      padding: 1.75rem 1.5rem;
+      background: linear-gradient(180deg, #1e1a16, #0f0d0b);
+      border: 1px solid rgba(100, 80, 60, 0.35);
+      text-align: center;
+      line-height: 1.65;
+    }
+
+    /* Continue Button Overlay (Bottom) */
+    .continue-overlay {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .continue-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .continue-btn {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      padding: 0.8rem 2rem;
+      background: rgba(10, 8, 6, 0.85);
+      border: 1px solid rgba(244, 217, 160, 0.4);
+      color: #f4d9a0;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      transition: all 0.3s ease;
+      animation: pulse-border 2s infinite;
+    }
+
+    .continue-btn:hover {
+      background: rgba(244, 217, 160, 0.15);
+      box-shadow: 0 4px 20px rgba(244, 217, 160, 0.2);
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(244, 217, 160, 0.4); }
+      50% { border-color: rgba(244, 217, 160, 0.8); }
+    }
+
+    /* Continue Button Overlay (Bottom) */
+    .continue-overlay {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 300;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .continue-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .continue-btn {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 1.1rem;
+      letter-spacing: 0.2em;
+      padding: 0.8rem 2rem;
+      background: rgba(10, 8, 6, 0.85);
+      border: 1px solid rgba(244, 217, 160, 0.4);
+      color: #f4d9a0;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      transition: all 0.3s ease;
+      animation: pulse-border 2s infinite;
+    }
+
+    .continue-btn:hover {
+      background: rgba(244, 217, 160, 0.15);
+      box-shadow: 0 4px 20px rgba(244, 217, 160, 0.2);
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(244, 217, 160, 0.4); }
+      50% { border-color: rgba(244, 217, 160, 0.8); }
+    }
+
+    /* Burnout Specific Styles */
+    .burnout-card {
+      background: linear-gradient(180deg, #1a0a0a, #050202);
+      border-color: rgba(178, 34, 34, 0.4);
+    }
+
+    .burnout-photo-placeholder {
+      width: 100%;
+      aspect-ratio: 1/1;
+      background: #111;
+      border: 4px solid #faf6ef;
+      border-bottom-width: 1.5rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+      transform: rotate(-2deg);
+      background-image: url('./图片资产/burnout.png');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .chaotic-text {
+      font-family: "Caveat", cursive;
+      font-size: 1.35rem;
+      line-height: 1.3;
+      color: #e8dcc4;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+      text-shadow: 1px 0 2px rgba(178,34,34,0.6);
+    }
+
+    .chaotic-btn {
+      font-family: "Caveat", cursive !important;
+      font-size: 1.4rem !important;
+      letter-spacing: 0.05em !important;
+      text-transform: none;
+      border-color: rgba(178, 34, 34, 0.5) !important;
+      color: #b22222 !important;
+    }
+
+    .chaotic-btn:hover {
+      background: rgba(178, 34, 34, 0.1) !important;
+    }
+
+    /* Clue Detail Modal */
+    .clue-modal {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 4, 3, 0.95);
+      z-index: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .clue-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .clue-modal-content {
+      width: 85%;
+      max-width: 340px;
+      background: linear-gradient(180deg, #faf6ef 0%, #ebe4d6 100%);
+      padding: 1rem 1rem 2rem;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      position: relative;
+      color: #1a1510;
+      border-radius: 2px;
+    }
+
+    .clue-modal-img {
+      width: 100%;
+      aspect-ratio: 1/1;
+      background-size: cover;
+      background-position: center;
+      background-color: #222;
+      margin-bottom: 1.5rem;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    .clue-modal-title {
+      font-family: "Caveat", cursive;
+      font-size: 2rem;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      line-height: 1.1;
+    }
+
+    .clue-modal-desc {
+      font-family: "Noto Serif", serif;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      text-align: center;
+      opacity: 0.85;
+      padding: 0 0.5rem;
+    }
+
+    .clue-modal-close {
+      position: absolute;
+      top: -1.5rem;
+      right: -1rem;
+      font-size: 2rem;
+      color: #f4d9a0;
+      cursor: pointer;
+      background: none;
+      border: none;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    button.restart {
+      margin-top: 1.25rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      padding: 0.55rem 1.1rem;
+      background: transparent;
+      border: 1px solid rgba(244, 217, 160, 0.35);
+      color: var(--lamp);
+      cursor: pointer;
+    }
+
+    button.restart:hover {
+      background: rgba(244, 217, 160, 0.08);
+    }
+
+    @media (max-width: 640px) {
+      .lab-note { display: none; }
+      .hud-hint { max-width: 90vw; }
+      .vn-dialogue-box { padding: 2rem 8%; }
+      .vn-portrait { opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="lamp-overlay" aria-hidden="true"></div>
+
+    <div class="hud">
+      <div class="hud-title">THREAD COLLISION</div>
+      <div class="hearts" id="hearts" aria-label="Remaining chances"></div>
+      <p class="hud-hint">Drag and drop related clues to connect them. Correct pairs will merge; wrong pairs cost a chance.</p>
+    </div>
+
+    <div class="board-frame">
+      <div class="board" id="board">
+        <div class="board-scratches" aria-hidden="true"></div>
+        <svg id="thread-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+
+        <!-- Clue cards: data-id for pairing logic -->
+        <article class="polaroid tint-blue" id="c-lab-report" data-id="lab-report" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/lab report.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner" aria-hidden="true"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Lab Report</p>
+        </article>
+
+        <article class="polaroid tint-blue" id="c-poisoned-cup" data-id="poisoned-cup" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/poisoned cup.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Poisoned Cup</p>
+        </article>
+
+        <article class="polaroid tint-red" id="c-hale-needle" data-id="hale-needle" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/neck injection.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Neck Injection</p>
+        </article>
+
+        <article class="polaroid tint-red" id="c-liam-notice" data-id="liam-notice" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/red notice.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Red Notice</p>
+        </article>
+
+        <article class="polaroid tint-green" id="c-viper-tattoo" data-id="viper-tattoo" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/vipers.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Vipers</p>
+        </article>
+
+        <article class="polaroid tint-green" id="c-elephant-doc" data-id="elephant-doc" tabindex="0">
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('./图片资产/snake&elephant.png'); background-size:cover; background-position:center;">
+            <div class="thumb-inner"></div>
+          </div>
+          <span class="question-mark">?</span>
+          <p class="caption">Snake & Elephant</p>
+        </article>
+      </div>
+    </div>
+
+    <!-- VN Dialogue System -->
+    <div class="vn-overlay" id="vn-overlay">
+      <div class="vn-portrait arthur" id="vn-portrait-arthur"></div>
+      <div class="vn-portrait chloe" id="vn-portrait-chloe"></div>
+      <div class="vn-dialogue-box" id="vn-dialogue-box">
+        <div class="vn-name" id="vn-name">ARTHUR</div>
+        <div class="vn-text" id="vn-text"></div>
+        <div class="vn-next">▶</div>
+      </div>
+    </div>
+
+    <div class="continue-overlay" id="continue-overlay" aria-hidden="true">
+      <button type="button" class="continue-btn" id="btn-continue">CONTINUE</button>
+    </div>
+
+    <div class="overlay" id="overlay-be" aria-hidden="true">
+      <div class="overlay-card burnout-card">
+        <div class="burnout-photo-placeholder" id="burnout-photo"></div>
+        <p class="chaotic-text">"My head... the threads... they're all tangling together... Which one is real? What did I take? ...Who am I?"</p>
+        <button type="button" class="restart chaotic-btn" id="btn-restart-be">...m-make it stop...</button>
+      </div>
+    </div>
+
+    <!-- Clue Detail Modal -->
+    <div class="clue-modal" id="clue-modal" aria-hidden="true">
+      <div class="clue-modal-content">
+        <button class="clue-modal-close" id="clue-modal-close">&times;</button>
+        <div class="clue-modal-img" id="clue-modal-img"></div>
+        <h3 class="clue-modal-title" id="clue-modal-title"></h3>
+        <p class="clue-modal-desc" id="clue-modal-desc"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const VALID = new Set([
+        "lab-report|poisoned-cup",
+        "hale-needle|liam-notice",
+        "elephant-doc|viper-tattoo"
+      ]);
+
+      const DIALOGUE_DATA = {
+        "lab-report|poisoned-cup": [
+          { char: "Arthur", text: "Same compound. Different dose. Vanessa wanted me asleep. Whoever did Hale wanted him dead." },
+          { char: "Chloe", text: "Same active ingredient. Including what they pulled out of Liam during interrogation last quarter." },
+          { char: "Arthur", text: "Liam was on it too?" },
+          { char: "Chloe", text: "He wasn't himself in that room. He was on something." }
+        ],
+        "hale-needle|liam-notice": [
+          { char: "Arthur", text: "The roommate owed Hale. Hale owed someone bigger. Money flows up, bodies fall down." },
+          { char: "Chloe", text: "Standard collection chain. But all the pieces on the board are dead. Whoever's pulling the strings is still walking around." }
+        ],
+        "elephant-doc|viper-tattoo": [
+          { char: "Arthur", text: "Footprint. Coiled circle. He wasn't being poetic. He was telling me they've been watching me. For a long time." },
+          { char: "Chloe", text: "And you're the elephant in the room." }
+        ],
+        "wrong_1": [
+          { char: "Arthur", text: "...That's not it. The pieces don't fit." },
+          { char: "Chloe", text: "Take it slow, Arthur. Don't force a connection that isn't there." }
+        ],
+        "wrong_2": [
+          { char: "Arthur", text: "Ugh... my head. Why is it so hard to focus?" },
+          { char: "Chloe", text: "Arthur? You're sweating. Maybe you should sit down." }
+        ],
+        "wrong_3": [
+          { char: "Arthur", text: "No, no, no... the lines are crossing... I can't... I can't see straight!" },
+          { char: "Chloe", text: "Arthur! Look at me. Your pupils are dilated. What did you take?!" }
+        ]
+      };
+
+      const MERGED_CLUES = {
+        "lab-report|poisoned-cup": { icon: "🧬", caption: "Poisoned Mind", img: "./图片资产/毒杀心智.png", desc: "Past experiences, drugs, addiction... maybe it was all fake. Part of a plan to make me believe I was just a junkie." },
+        "hale-needle|liam-notice": { icon: "🔗", caption: "Sequential Deaths", img: "./图片资产/先后死亡.png", desc: "The debtor died, and we thought the collector did it. But then the collector died too." },
+        "elephant-doc|viper-tattoo": { icon: "🐘", caption: "Elephant in the Room", img: "./图片资产/房间里的大象.png", desc: "It has always been around me. Always, always." }
+      };
+
+      const CLUE_DETAILS = {
+        "lab-report": { title: "Lab Report", img: "./图片资产/lab report.png", desc: "Forensic analysis confirming the same active compound in three different cases." },
+        "poisoned-cup": { title: "Poisoned Cup", img: "./图片资产/poisoned cup.png", desc: "The drink Vanessa gave Arthur, laced with a heavy dose of flunitrazepam." },
+        "hale-needle": { title: "Neck Injection", img: "./图片资产/neck injection.png", desc: "A close-up of the lethal injection mark found on Hale's neck." },
+        "liam-notice": { title: "Red Notice", img: "./图片资产/red notice.png", desc: "A debt collection notice found in Liam's roommate's belongings." },
+        "viper-tattoo": { title: "Vipers", img: "./图片资产/vipers.png", desc: "The poster in the bar, the tattoo on Vanessa's arm, Julian's painting, and Liam's fear. What exactly is VIPER?" },
+        "elephant-doc": { title: "Snake & Elephant", img: "./图片资产/snake&elephant.png", desc: "A documentary still showing a snake swallowing an elephant, referencing Julian's cryptic warning." }
+      };
+
+      const board = document.getElementById("board");
+      const svg = document.getElementById("thread-layer");
+      const heartsEl = document.getElementById("hearts");
+      const overlayWin = document.getElementById("overlay-win");
+      const overlayBe = document.getElementById("overlay-be");
+      const continueOverlay = document.getElementById("continue-overlay");
+      const btnContinue = document.getElementById("btn-continue");
+      const clueModal = document.getElementById("clue-modal");
+      const clueModalImg = document.getElementById("clue-modal-img");
+      const clueModalTitle = document.getElementById("clue-modal-title");
+      const clueModalDesc = document.getElementById("clue-modal-desc");
+      const clueModalClose = document.getElementById("clue-modal-close");
+
+      let hearts = 3;
+      const solved = new Set();
+      let dragEl = null;
+      let startX = 0, startY = 0, baseLeft = 0, baseTop = 0;
+      let moved = false;
+
+      // VN Dialogue State
+      let currentDialogue = [];
+      let dialogueIndex = 0;
+      let onDialogueComplete = null;
+
+      function pairKey(a, b) {
+        return [a, b].sort().join("|");
+      }
+
+      function initHearts() {
+        heartsEl.innerHTML = "";
+        for (let i = 0; i < 3; i++) {
+          const h = document.createElement("span");
+          h.className = "heart";
+          h.title = "Chance";
+          heartsEl.appendChild(h);
+        }
+      }
+
+      function syncHearts() {
+        const nodes = heartsEl.querySelectorAll(".heart");
+        nodes.forEach((n, i) => {
+          n.classList.toggle("lost", i >= hearts);
+        });
+      }
+
+      function boardRect() {
+        return board.getBoundingClientRect();
+      }
+
+      // VN Dialogue Functions
+      function playDialogue(key, checkWinAfter = false) {
+        currentDialogue = DIALOGUE_DATA[key];
+        dialogueIndex = 0;
+        onDialogueComplete = checkWinAfter ? checkWinState : null;
+        document.getElementById("vn-overlay").classList.add("active");
+        showNextLine();
+      }
+
+      function showNextLine() {
+        if (dialogueIndex >= currentDialogue.length) {
+          document.getElementById("vn-overlay").classList.remove("active");
+          document.getElementById("vn-portrait-arthur").classList.remove("active");
+          document.getElementById("vn-portrait-chloe").classList.remove("active");
+          if (onDialogueComplete) onDialogueComplete();
+          return;
+        }
+        const line = currentDialogue[dialogueIndex];
+        document.getElementById("vn-name").textContent = line.char;
+        document.getElementById("vn-text").textContent = line.text;
+        
+        const pArthur = document.getElementById("vn-portrait-arthur");
+        const pChloe = document.getElementById("vn-portrait-chloe");
+        
+        if (line.char === "Arthur") {
+          pArthur.classList.add("active");
+          pChloe.classList.remove("active");
+        } else if (line.char === "Chloe") {
+          pChloe.classList.add("active");
+          pArthur.classList.remove("active");
+        }
+
+        dialogueIndex++;
+      }
+
+      document.getElementById("vn-overlay").addEventListener("click", showNextLine);
+
+      function checkWinState() {
+        if (solved.size >= VALID.size) {
+          setTimeout(() => {
+            continueOverlay.classList.add("show");
+            continueOverlay.setAttribute("aria-hidden", "false");
+          }, 800);
+        }
+      }
+
+      function mergePair(id1, id2) {
+        const k = pairKey(id1, id2);
+        solved.add(k);
+        const c1 = document.querySelector('[data-id="' + id1 + '"]');
+        const c2 = document.querySelector('[data-id="' + id2 + '"]');
+        
+        const r1 = c1.getBoundingClientRect();
+        const r2 = c2.getBoundingClientRect();
+        const br = boardRect();
+        
+        const midX = ((r1.left + r2.left) / 2) - br.left;
+        const midY = ((r1.top + r2.top) / 2) - br.top;
+
+        c1.style.display = "none";
+        c2.style.display = "none";
+
+        const mData = MERGED_CLUES[k];
+        const mCard = document.createElement("article");
+        mCard.className = "polaroid merged";
+        mCard.style.left = midX + "px";
+        mCard.style.top = midY + "px";
+        mCard.dataset.pair = k;
+        mCard.innerHTML = `
+          <span class="pin" aria-hidden="true"></span>
+          <div class="thumb" style="background-image:url('${mData.img}')">
+            <div class="thumb-inner">${mData.icon}</div>
+          </div>
+          <p class="caption">${mData.caption}</p>
+        `;
+        board.appendChild(mCard);
+
+        playDialogue(k, true);
+      }
+
+      function wrongGuess() {
+        hearts -= 1;
+        syncHearts();
+        
+        const glitch = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        const r = boardRect();
+        glitch.setAttribute("x1", r.width * 0.2);
+        glitch.setAttribute("y1", r.height * 0.3);
+        glitch.setAttribute("x2", r.width * 0.8);
+        glitch.setAttribute("y2", r.height * 0.75);
+        glitch.classList.add("dim");
+        svg.appendChild(glitch);
+        setTimeout(() => glitch.remove(), 450);
+
+        let dialogueKey = "wrong_1";
+        if (hearts === 1) dialogueKey = "wrong_2";
+        if (hearts === 0) dialogueKey = "wrong_3";
+
+        currentDialogue = DIALOGUE_DATA[dialogueKey];
+        dialogueIndex = 0;
+        onDialogueComplete = () => {
+          if (hearts <= 0) {
+            setTimeout(() => {
+              overlayBe.classList.add("show");
+              overlayBe.setAttribute("aria-hidden", "false");
+            }, 400);
+          }
+        };
+        document.getElementById("vn-overlay").classList.add("active");
+        showNextLine();
+      }
+
+      function tryMerge(a, b) {
+        if (a === b) return;
+        const k = pairKey(a, b);
+        if (solved.has(k)) return;
+        if (VALID.has(k)) {
+          mergePair(a, b);
+        } else {
+          wrongGuess();
+        }
+      }
+
+      function onPointerDown(e) {
+        const card = e.target.closest(".polaroid");
+        if (!card) return;
+        e.preventDefault();
+        dragEl = card;
+        moved = false;
+        dragEl.classList.add("dragging");
+        const br = boardRect();
+        const cr = dragEl.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        baseLeft = cr.left - br.left;
+        baseTop = cr.top - br.top;
+        dragEl.style.left = baseLeft + "px";
+        dragEl.style.top = baseTop + "px";
+        dragEl.style.transform = "none";
+        dragEl.setPointerCapture(e.pointerId);
+      }
+
+      function onPointerMove(e) {
+        if (!dragEl) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+        
+        const br = boardRect();
+        let nx = baseLeft + dx;
+        let ny = baseTop + dy;
+        const w = dragEl.offsetWidth;
+        const h = dragEl.offsetHeight;
+        nx = Math.max(0, Math.min(nx, br.width - w));
+        ny = Math.max(0, Math.min(ny, br.height - h));
+        dragEl.style.left = nx + "px";
+        dragEl.style.top = ny + "px";
+      }
+
+      function overlapRatio(r1, r2) {
+        const w = Math.max(0, Math.min(r1.right, r2.right) - Math.max(r1.left, r2.left));
+        const h = Math.max(0, Math.min(r1.bottom, r2.bottom) - Math.max(r1.top, r2.top));
+        const inter = w * h;
+        if (inter <= 0) return 0;
+        const a1 = r1.width * r1.height;
+        const a2 = r2.width * r2.height;
+        return inter / Math.min(a1, a2);
+      }
+
+      function onPointerUp(e) {
+        if (!dragEl) return;
+        try { dragEl.releasePointerCapture(e.pointerId); } catch (_) {}
+        
+        if (!moved && dragEl.classList.contains("merged")) {
+          // Clicked a merged card -> show details
+          const pairKey = dragEl.dataset.pair;
+          const details = MERGED_CLUES[pairKey];
+          if (details) {
+            clueModalImg.style.backgroundImage = `url('${details.img}')`;
+            clueModalTitle.textContent = details.caption;
+            clueModalDesc.textContent = details.desc;
+            clueModal.classList.add("show");
+            clueModal.setAttribute("aria-hidden", "false");
+          }
+        } else if (!moved && !dragEl.classList.contains("merged")) {
+          // Clicked an unmerged card -> show details
+          const idA = dragEl.dataset.id;
+          const details = CLUE_DETAILS[idA];
+          if (details) {
+            clueModalImg.style.backgroundImage = `url('${details.img}')`;
+            clueModalTitle.textContent = details.title;
+            clueModalDesc.textContent = details.desc;
+            clueModal.classList.add("show");
+            clueModal.setAttribute("aria-hidden", "false");
+          }
+        } else if (moved && !dragEl.classList.contains("merged")) {
+          // Dragged an unmerged card
+          const idA = dragEl.dataset.id;
+          const rA = dragEl.getBoundingClientRect();
+          let best = null;
+          let bestRatio = 0.12;
+          document.querySelectorAll(".polaroid:not(.merged)").forEach((p) => {
+            if (p === dragEl || p.style.display === "none") return;
+            const r = overlapRatio(rA, p.getBoundingClientRect());
+            if (r > bestRatio) {
+              bestRatio = r;
+              best = p;
+            }
+          });
+          if (best) tryMerge(idA, best.dataset.id);
+        }
+        
+        dragEl.classList.remove("dragging");
+        dragEl = null;
+      }
+
+      board.addEventListener("pointerdown", onPointerDown);
+      board.addEventListener("pointermove", onPointerMove);
+      board.addEventListener("pointerup", onPointerUp);
+      board.addEventListener("pointercancel", onPointerUp);
+
+      clueModalClose.addEventListener("click", () => {
+        clueModal.classList.remove("show");
+        clueModal.setAttribute("aria-hidden", "true");
+      });
+      clueModal.addEventListener("click", (e) => {
+        if (e.target === clueModal) {
+          clueModal.classList.remove("show");
+          clueModal.setAttribute("aria-hidden", "true");
+        }
+      });
+
+      function resetGame() {
+        hearts = 3;
+        solved.clear();
+        initHearts();
+        syncHearts();
+        svg.innerHTML = "";
+        continueOverlay.classList.remove("show");
+        continueOverlay.setAttribute("aria-hidden", "true");
+        overlayBe.classList.remove("show");
+        overlayBe.setAttribute("aria-hidden", "true");
+        
+        document.querySelectorAll(".polaroid.merged").forEach(p => p.remove());
+        document.querySelectorAll(".polaroid").forEach((p) => {
+          p.style.display = "";
+          p.style.left = "";
+          p.style.top = "";
+          p.style.transform = "";
+        });
+        
+        const positions = {
+          "viper-tattoo": { left: "8%", top: "18%", transform: "rotate(-4deg)" },
+          "hale-needle": { left: "52%", top: "22%", transform: "rotate(5deg)" },
+          "lab-report": { left: "10%", top: "42%", transform: "rotate(3deg)" },
+          "elephant-doc": { left: "55%", top: "46%", transform: "rotate(-6deg)" },
+          "liam-notice": { left: "12%", top: "66%", transform: "rotate(-3deg)" },
+          "poisoned-cup": { left: "50%", top: "70%", transform: "rotate(7deg)" }
+        };
+        Object.keys(positions).forEach((id) => {
+          const el = document.querySelector('[data-id="' + id + '"]');
+          if (!el) return;
+          const pos = positions[id];
+          el.style.left = pos.left;
+          el.style.top = pos.top;
+          el.style.transform = pos.transform;
+        });
+      }
+
+      btnContinue.addEventListener("click", () => {
+        // Handle continue action here (e.g. navigate to next scene)
+        console.log("Continue to next scene...");
+      });
+      document.getElementById("btn-restart-be").addEventListener("click", resetGame);
+
+      initHearts();
+      syncHearts();
+    })();
+  </script>
+</body>
+</html>
