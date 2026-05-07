@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fog Clear - Cognitive Paradox</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Courier New', Courier, monospace; /* Retro typewriter font */
+            background-color: #12100e; /* Dark retro background */
+            color: #d0c0a0;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 9:16 Aspect Ratio Container */
+        #game-container {
+            width: 100%;
+            height: 100%;
+            max-width: 450px; /* Mobile width constraint for desktop */
+            max-height: 800px;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 0 30px rgba(0,0,0,0.9);
+            border: 2px solid #3a2e20;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* CRT Scanlines and Vignette Overlay */
+        #crt-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.9);
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.6;
+        }
+
+        /* UI Layer (Title & Instructions) */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%;
+            padding: 40px 20px 30px;
+            box-sizing: border-box;
+            background: linear-gradient(to bottom, rgba(15,10,5,0.9) 0%, rgba(15,10,5,0.6) 60%, transparent 100%);
+            pointer-events: none;
+            z-index: 30;
+            text-align: center;
+        }
+
+        h1 {
+            color: #e6c27a; /* Vintage gold */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
+            font-size: 22px;
+            margin: 0 0 12px 0;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(230, 194, 122, 0.5);
+            display: inline-block;
+            padding-bottom: 8px;
+        }
+
+        p.instructions {
+            color: #b0a080;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* 迷雾照片区域 */
+        #photo-area {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #photo-area img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Fill the 9:16 area perfectly */
+            filter: sepia(40%) contrast(110%) brightness(85%); /* Retro photo filter */
+        }
+
+        /* 迷雾遮罩层 */
+        .fog-section {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(30, 25, 20, 0.85); /* Warm dark fog */
+            backdrop-filter: blur(10px) grayscale(40%);
+            transition: opacity 1.5s ease;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .fog-section.cleared {
+            opacity: 0;
+        }
+
+        /* 迷雾蒙版：对齐热区位置 */
+        #fog-frag1 { -webkit-mask-image: radial-gradient(ellipse at 56% 73%, black 15%, transparent 55%); mask-image: radial-gradient(ellipse at 56% 73%, black 15%, transparent 55%); } /* 酒杯 */
+        #fog-frag2 { -webkit-mask-image: radial-gradient(ellipse at 95% 47%, black 15%, transparent 55%); mask-image: radial-gradient(ellipse at 95% 47%, black 15%, transparent 55%); } /* 反光 */
+        #fog-frag3 { -webkit-mask-image: radial-gradient(ellipse at 77% 52%, black 15%, transparent 55%); mask-image: radial-gradient(ellipse at 77% 52%, black 15%, transparent 55%); } /* 红泥 */
+        #fog-frag4 { -webkit-mask-image: radial-gradient(ellipse at 32% 31%, black 15%, transparent 55%); mask-image: radial-gradient(ellipse at 32% 31%, black 15%, transparent 55%); } /* 刺青 */
+
+        /* 放置热区 (Drop Zones) */
+        .drop-zone {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: none;
+            border-radius: 0;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .drop-zone.highlight {
+            background: transparent;
+            box-shadow: none;
+            border: none;
+        }
+
+        .drop-zone.highlight::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, rgba(230, 194, 122, 0.4) 10%, transparent 60%); /* Retro gold glow */
+            filter: blur(15px);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 20;
+            animation: highlightPulse 1s infinite alternate;
+            mix-blend-mode: screen;
+        }
+
+        @keyframes highlightPulse {
+            from { opacity: 0.5; transform: translate(-50%, -50%) scale(0.9); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+        }
+
+        .drop-zone.hint {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            z-index: 20;
+        }
+
+        .drop-zone.hint::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, rgba(255, 240, 200, 0.5) 10%, transparent 60%);
+            filter: blur(20px);
+            border-radius: 50%;
+            animation: hintPulse 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+            pointer-events: none;
+            mix-blend-mode: screen;
+        }
+
+        @keyframes hintPulse {
+            from { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
+            to { opacity: 0.9; transform: translate(-50%, -50%) scale(1.4); }
+        }
+
+        .drop-zone.cleared {
+            border: none;
+            z-index: 15;
+            box-shadow: none;
+        }
+
+        /* 区域位置（适配 9:16 比例） */
+        #zone-drink { top: 73%; left: 56%; }   /* 酒杯 */
+        #zone-mirror { top: 47%; left: 95%; }  /* 反光 */
+        #zone-mud { top: 52%; left: 77%; }      /* 红泥 */
+        #zone-viper { top: 31%; left: 32%; }   /* 刺青 */
+
+        /* 底部线索栏 */
+        #clues-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            padding: 15px 20px;
+            background: rgba(30, 20, 10, 0.85); /* Vintage dark brown */
+            border-radius: 12px;
+            border: 2px solid #5a4634;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            z-index: 30;
+            backdrop-filter: blur(8px);
+        }
+
+        .clue-item {
+            width: 60px;
+            height: 60px;
+            background: rgba(20, 15, 10, 0.9);
+            border: 2px solid #8b7355;
+            border-radius: 8px;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            transition: all 0.2s;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        .clue-item:hover {
+            border-color: #e6c27a;
+            transform: translateY(-5px);
+            box-shadow: inset 0 0 10px rgba(230, 194, 122, 0.2), 0 8px 15px rgba(0,0,0,0.6);
+        }
+
+        .clue-item:active {
+            cursor: grabbing;
+        }
+
+        .clue-item.used {
+            opacity: 0.4;
+            filter: grayscale(100%);
+            border-color: #333;
+            cursor: pointer;
+        }
+
+        .clue-item.used:hover {
+            opacity: 0.8;
+            border-color: #e6c27a;
+        }
+
+        /* 视频/剧情模态框 */
+        #video-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 100;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #video-modal.active {
+            display: block;
+            opacity: 1;
+        }
+
+        #playback-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        .video-ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .video-placeholder-text {
+            margin-top: 50px;
+            color: rgba(230, 194, 122, 0.6);
+            font-size: 16px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(0,0,0,0.9);
+            transition: opacity 0.5s;
+        }
+
+        .bottom-content {
+            width: 100%;
+            padding: 0 20px 40px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
+            pointer-events: auto;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            font-size: 16px;
+            background: rgba(20, 15, 10, 0.8);
+            color: #e6c27a;
+            border: 2px solid #e6c27a;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: #e6c27a;
+            color: #1a1a1a;
+            box-shadow: 0 0 20px rgba(230, 194, 122, 0.4);
+        }
+
+        .btn.pulse {
+            animation: btnPulse 2s infinite alternate;
+        }
+
+        @keyframes btnPulse {
+            from { box-shadow: 0 0 10px rgba(230, 194, 122, 0.3); }
+            to { box-shadow: 0 0 25px rgba(230, 194, 122, 0.8); }
+        }
+
+        #continue-story-btn {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 40;
+            width: 80%;
+            max-width: 300px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="crt-overlay"></div>
+
+    <!-- 迷雾照片区域 -->
+    <div id="photo-area">
+        <img src="fog-clear-scene.png" alt="scene" draggable="false">
+        
+        <!-- 拆分后的 4 块迷雾 -->
+        <div class="fog-section" id="fog-frag4" data-id="frag4"></div>
+        <div class="fog-section" id="fog-frag2" data-id="frag2"></div>
+        <div class="fog-section" id="fog-frag1" data-id="frag1"></div>
+        <div class="fog-section" id="fog-frag3" data-id="frag3"></div>
+        
+        <!-- 热区 -->
+        <div class="drop-zone" id="zone-drink" data-target="frag1" data-fog="fog-frag1"></div>
+        <div class="drop-zone" id="zone-mirror" data-target="frag2" data-fog="fog-frag2"></div>
+        <div class="drop-zone" id="zone-mud" data-target="frag3" data-fog="fog-frag3"></div>
+        <div class="drop-zone" id="zone-viper" data-target="frag4" data-fog="fog-frag4"></div>
+    </div>
+
+    <!-- 顶部 UI -->
+    <div id="ui-layer">
+        <h1>Memory Reconstruction</h1>
+        <p class="instructions">Drag the gathered clues to their corresponding locations on the photo to clear the fog and reveal the truth.</p>
+    </div>
+
+    <!-- 底部线索 -->
+    <div id="clues-container">
+        <div class="clue-item" draggable="true" id="frag1" data-id="frag1">🍷</div>
+        <div class="clue-item" draggable="true" id="frag2" data-id="frag2">📸</div>
+        <div class="clue-item" draggable="true" id="frag3" data-id="frag3">👠</div>
+        <div class="clue-item" draggable="true" id="frag4" data-id="frag4">🐍</div>
+    </div>
+
+    <button class="btn pulse" id="continue-story-btn" style="display:none;" onclick="returnToMainStory()">Continue to Main Story</button>
+
+    <!-- 视频剧情弹出层 -->
+    <div id="video-modal">
+        <video id="playback-video" src="" playsinline webkit-playsinline></video>
+        
+        <!-- 覆盖在视频上的 UI 层 -->
+        <div class="video-ui-layer">
+            <div class="video-placeholder-text" id="video-loading-text">[ MEMORY PLAYBACK ]</div>
+            
+            <div class="bottom-content">
+                <div class="btn-group">
+                    <button class="btn" onclick="replayVideo()">Replay</button>
+                    <button class="btn" onclick="closeVideoPlayback()">Return</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let clearedCount = 0;
+    const totalClues = 4;
+
+    // 拖拽逻辑
+    const clues = document.querySelectorAll('.clue-item');
+    const dropZones = document.querySelectorAll('.drop-zone');
+    let draggedItem = null;
+
+    // 移动端触摸支持
+    let touchTarget = null;
+
+    function handleDragStart(item) {
+        if (item.classList.contains('used')) return;
+        draggedItem = item;
+        setTimeout(() => item.style.opacity = '0.5', 0);
+        
+        const targetId = item.getAttribute('data-id');
+        const targetZone = document.querySelector('.drop-zone[data-target="' + targetId + '"]');
+        if (targetZone && !targetZone.classList.contains('cleared')) {
+            targetZone.classList.add('hint');
+        }
+    }
+
+    function handleDragEnd(item) {
+        if (item.classList.contains('used')) {
+            item.style.opacity = ''; // 恢复 CSS 中定义的 opacity
+        } else {
+            setTimeout(() => item.style.opacity = '1', 0);
+        }
+        draggedItem = null;
+        document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('hint', 'highlight'));
+    }
+
+    clues.forEach(clue => {
+        // Click Event for replay
+        clue.addEventListener('click', function(e) {
+            if (this.classList.contains('used')) {
+                const fragId = this.getAttribute('data-id');
+                startVideoPlayback(fragId);
+            }
+        });
+
+        // Mouse Events
+        clue.addEventListener('dragstart', function(e) { handleDragStart(this); });
+        clue.addEventListener('dragend', function(e) { handleDragEnd(this); });
+
+        // Touch Events
+        clue.addEventListener('touchstart', function(e) {
+            if (this.classList.contains('used')) return; // 允许 used 状态触发 click
+            handleDragStart(this);
+            // 阻止默认滚动
+            e.preventDefault();
+        }, {passive: false});
+
+        clue.addEventListener('touchmove', function(e) {
+            if (!draggedItem) return;
+            e.preventDefault();
+            const touch = e.targetTouches[0];
+            
+            // 视觉跟随 (可选，这里简单处理不改变位置，只判断落点)
+            // 找到当前手指下方的元素
+            const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+            document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+            
+            if (elem && elem.classList.contains('drop-zone')) {
+                if (elem.getAttribute('data-target') === draggedItem.getAttribute('data-id')) {
+                    elem.classList.add('highlight');
+                }
+            }
+        }, {passive: false});
+
+        clue.addEventListener('touchend', function(e) {
+            if (!draggedItem) return;
+            const touch = e.changedTouches[0];
+            const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (elem && elem.classList.contains('drop-zone')) {
+                if (elem.getAttribute('data-target') === draggedItem.getAttribute('data-id')) {
+                    matchSuccess(elem, draggedItem);
+                }
+            }
+            handleDragEnd(this);
+        });
+    });
+
+    dropZones.forEach(zone => {
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            if(draggedItem && this.getAttribute('data-target') === draggedItem.getAttribute('data-id')) {
+                this.classList.add('highlight');
+            }
+        });
+
+        zone.addEventListener('dragleave', function(e) {
+            this.classList.remove('highlight');
+        });
+
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('highlight');
+            
+            if (draggedItem && this.getAttribute('data-target') === draggedItem.getAttribute('data-id')) {
+                matchSuccess(this, draggedItem);
+            }
+        });
+    });
+
+    const videoSources = {
+        frag1: '视频资产_压缩/下药.mp4',
+        frag2: '视频资产_压缩/拍摄.mp4',
+        frag3: '视频资产_压缩/红泥.mp4',
+        frag4: '视频资产_压缩/闪回.mp4'
+    };
+
+    function startVideoPlayback(fragId) {
+        const modal = document.getElementById('video-modal');
+        const video = document.getElementById('playback-video');
+        const loadingText = document.getElementById('video-loading-text');
+        
+        // 设置视频源并播放
+        if (videoSources[fragId]) {
+            video.src = videoSources[fragId];
+            video.load();
+            video.play().catch(e => console.log("Auto-play prevented:", e));
+        }
+
+        loadingText.style.opacity = '1';
+        setTimeout(() => { loadingText.style.opacity = '0'; }, 2000); // 2秒后隐藏加载文字
+        
+        modal.classList.add('active');
+    }
+
+    function replayVideo() {
+        const video = document.getElementById('playback-video');
+        video.currentTime = 0;
+        video.play().catch(e => console.log("Auto-play prevented:", e));
+    }
+
+    function matchSuccess(zone, item) {
+        item.classList.add('used');
+        item.setAttribute('draggable', 'false');
+        
+        zone.style.display = 'none';
+
+        const targetFogId = zone.getAttribute('data-fog');
+        const fogSection = document.getElementById(targetFogId);
+        if (fogSection) {
+            fogSection.classList.add('cleared');
+        }
+
+        const fragId = item.getAttribute('data-id');
+        startVideoPlayback(fragId);
+        
+        clearedCount++;
+    }
+
+    function closeVideoPlayback() {
+        const modal = document.getElementById('video-modal');
+        const video = document.getElementById('playback-video');
+        
+        modal.classList.remove('active');
+        
+        // 停止视频播放
+        setTimeout(() => {
+            video.pause();
+            video.src = "";
+        }, 500); // 等待淡出动画结束
+
+        if (clearedCount >= totalClues) {
+            document.getElementById('continue-story-btn').style.display = 'block';
+        }
+    }
+
+    function returnToMainStory() {
+        alert("Proceeding to EP03: The Neon Bar...");
+        // window.location.href = 'EP03.html';
+    }
+
+</script>
+</body>
+</html>
