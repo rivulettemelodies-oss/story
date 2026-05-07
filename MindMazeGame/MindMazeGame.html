@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>意识迷宫 - 记忆提取</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=JetBrains+Mono:wght@400;500&family=Noto+Serif:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --ink: #1a1510;
+            --paper: #e8dcc4;
+            --cork: #6b4e32;
+            --cork-deep: #3d2818;
+            --lamp: #f4d9a0;
+            --red-thread: #b22222;
+            --red-dim: #5c2a2a;
+            --chalk: #c9bcaa;
+            --shadow: rgba(0, 0, 0, 0.55);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: "Noto Serif", "Georgia", serif;
+            background: #0a0a0a;
+            color: var(--chalk);
+        }
+
+        .app-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100vw;
+            height: 100vh;
+            max-width: 430px;
+            max-height: 850px;
+            background-color: #0c0a08;
+            /* 复合背景：暗角 + 胶片噪点杂色 + 案板细网格 + 灯光底色 */
+            background-image: 
+                radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, rgba(5, 4, 3, 0.8) 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"),
+                linear-gradient(rgba(244, 217, 160, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(244, 217, 160, 0.03) 1px, transparent 1px),
+                radial-gradient(ellipse 120% 80% at 50% 0%, #2a2218 0%, #0d0a08 55%, #050403 100%);
+            background-size: 100% 100%, 150px 150px, 20px 20px, 20px 20px, 100% 100%;
+            background-blend-mode: normal, overlay, normal, normal, normal;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(244, 217, 160, 0.05);
+        }
+
+        @media (min-width: 431px) and (min-height: 851px) {
+            .app-container {
+                width: 430px;
+                height: 850px;
+                border-radius: 16px;
+            }
+        }
+
+        /* 顶部 HUD */
+        #hud {
+            width: 100%;
+            padding: 15px 20px;
+            background-color: #120e0b; /* 独立的实色背景板 */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-bottom: 4px solid #2a2218; /* 明显的分割边框 */
+            box-shadow: 0 5px 20px rgba(0,0,0,0.9); /* 给下方投射物理阴影 */
+        }
+
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .hud-title {
+            font-family: "JetBrains Mono", monospace;
+            font-size: 14px;
+            color: var(--lamp);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .info-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: "JetBrains Mono", monospace;
+            font-size: 13px;
+            color: var(--chalk);
+        }
+
+        .info-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--paper);
+        }
+        
+        .highlight {
+            color: var(--lamp);
+        }
+
+        /* 碎片圆盘拼图与完成按钮容器 */
+        #hud-bottom-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5px;
+            height: 40px;
+        }
+
+        #fragments-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .frag-slot {
+            width: 36px;
+            height: 36px;
+            border: 1px dashed rgba(201, 188, 170, 0.3);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            opacity: 0.35;
+            filter: grayscale(1) contrast(0.5);
+            transition: all 0.5s ease;
+        }
+
+        .frag-slot.active {
+            opacity: 1;
+            filter: drop-shadow(0 2px 4px var(--shadow));
+            border: 1px solid var(--lamp);
+            background: rgba(244, 217, 160, 0.1);
+            box-shadow: 0 0 10px rgba(244, 217, 160, 0.2);
+        }
+
+        .frag-slot.active-snake {
+            filter: drop-shadow(0 2px 4px var(--shadow));
+            border: 1px solid var(--red-thread);
+            background: rgba(178, 34, 34, 0.15);
+            box-shadow: 0 0 10px rgba(178, 34, 34, 0.3);
+        }
+
+        /* 游戏区域 */
+        #play-area {
+            flex-grow: 1;
+            position: relative;
+            z-index: 5;
+            cursor: crosshair;
+            overflow: hidden;
+        }
+
+        /* 顶部危险消散区 */
+        #danger-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(to bottom, rgba(178, 34, 34, 0.3), transparent);
+            pointer-events: none;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 10px;
+            z-index: 10;
+            overflow: hidden; /* 防止粒子溢出 */
+        }
+
+        /* 危险区粒子 */
+        .danger-particle {
+            position: absolute;
+            background-color: var(--red-thread);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            box-shadow: 0 0 4px var(--red-thread);
+            animation: particleFall linear forwards;
+        }
+
+        @keyframes particleFall {
+            0% { transform: translateY(-10px) scale(0.5); opacity: 0; }
+            20% { opacity: 0.8; transform: translateY(10px) scale(1); }
+            80% { opacity: 0.5; }
+            100% { transform: translateY(60px) scale(0.2); opacity: 0; }
+        }
+
+        #danger-zone-text {
+            color: rgba(244, 217, 160, 0.6);
+            font-family: "JetBrains Mono", monospace;
+            font-size: 10px;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+
+        /* 思想泡泡（改为复古便签风格） */
+        .bubble {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 2px;
+            background-color: rgba(232, 220, 196, 0.85); /* paper color */
+            border: 1px solid var(--cork);
+            box-shadow: 2px 2px 5px var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: visible;
+            cursor: crosshair;
+            transition: transform 0.1s;
+            animation: floatUp linear forwards;
+        }
+
+        .bubble::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 15px;
+            height: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+
+        .bubble:hover {
+            transform: scale(1.1) rotate(-3deg);
+            background-color: var(--paper);
+        }
+
+        .bubble .emoji-icon {
+            font-size: 28px;
+            pointer-events: none;
+            user-select: none;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+        }
+
+        /* 蛇便签特殊光效 */
+        .bubble-snake {
+            border-color: var(--red-thread) !important;
+            background-color: #d1bba0 !important;
+            box-shadow: 2px 2px 8px rgba(178, 34, 34, 0.4) !important;
+        }
+        
+        .bubble-snake::before {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 1px dashed var(--red-thread);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* 击碎特效 */
+        .burst {
+            animation: burstAnim 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+            border-color: var(--lamp) !important;
+            background-color: rgba(244, 217, 160, 0.9) !important;
+            box-shadow: 0 0 20px var(--lamp) !important;
+        }
+
+        @keyframes burstAnim {
+            0% { transform: scale(1); opacity: 1; }
+            30% { transform: scale(1.2) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1.5) rotate(-5deg); opacity: 0; filter: blur(2px); }
+        }
+
+        /* 漏掉特效 */
+        .fail-burst {
+            animation: failAnim 0.5s ease-in forwards !important;
+            border-color: var(--red-thread) !important;
+            background-color: rgba(178, 34, 34, 0.8) !important;
+        }
+
+        @keyframes failAnim {
+            0% { transform: scale(1); opacity: 1; }
+            40% { transform: scale(1.1) translateX(5px) rotate(10deg); opacity: 0.8; }
+            100% { transform: scale(0.8) translateY(50px) rotate(-15deg); opacity: 0; filter: grayscale(1); }
+        }
+
+        /* 分数提示 */
+        .score-popup {
+            position: absolute;
+            font-family: "JetBrains Mono", monospace;
+            font-size: 18px;
+            font-weight: bold;
+            pointer-events: none;
+            animation: popupAnim 1s forwards;
+            z-index: 20;
+        }
+        .score-plus { color: var(--lamp); text-shadow: 1px 1px 2px var(--shadow); }
+        .score-minus { color: var(--red-thread); text-shadow: 1px 1px 2px var(--shadow); }
+
+        @keyframes popupAnim {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+        }
+
+        /* 字幕区域与头像 */
+        #subtitle-container {
+            position: absolute;
+            top: 32%; /* 往下移动，避免挡住顶部危险区提示 */
+            width: 100%;
+            pointer-events: none;
+            z-index: 50;
+            display: flex;
+            flex-direction: row-reverse; /* 头像在右，文字在左 */
+            justify-content: flex-start; /* 整体靠右 */
+            align-items: flex-end;
+            padding: 0 20px;
+            opacity: 0;
+            transform: translateX(30px); /* 从右侧滑入 */
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #subtitle-container.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .avatar-box {
+            width: 45px;
+            height: 45px;
+            border-radius: 4px;
+            border: 2px solid var(--ink);
+            background: var(--paper);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 2px 2px 8px var(--shadow);
+            margin-left: 12px; /* 间距换到左边 */
+            flex-shrink: 0;
+        }
+
+        .subtitle-text {
+            background: rgba(26, 21, 16, 0.85); /* ink */
+            color: var(--paper);
+            padding: 12px 16px;
+            border-radius: 12px;
+            border-bottom-right-radius: 2px; /* 聊天气泡尾巴在右下角 */
+            font-size: 14px;
+            border: 1px solid rgba(244, 217, 160, 0.3); /* lamp border */
+            box-shadow: 0 4px 10px var(--shadow);
+            font-style: italic;
+            max-width: 250px;
+            line-height: 1.4;
+            position: relative;
+        }
+        
+        .subtitle-text::before {
+            content: '';
+            position: absolute;
+            right: -6px; /* 尾巴移到右边 */
+            bottom: 0;
+            width: 0;
+            height: 0;
+            border-bottom: 8px solid rgba(26, 21, 16, 0.85);
+            border-left: 6px solid transparent;
+        }
+
+        /* 遮罩层 (开始/结束) */
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            text-align: center;
+        }
+
+        /* 复古纸张风格的面板 */
+        .overlay-panel {
+            background-color: var(--paper);
+            color: var(--ink);
+            padding: 30px 20px;
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 40px rgba(107, 78, 50, 0.1);
+            width: 100%;
+            max-width: 360px;
+            position: relative;
+            background-image: radial-gradient(rgba(107, 78, 50, 0.1) 1px, transparent 1px);
+            background-size: 4px 4px;
+        }
+
+        .overlay-panel::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border: 1px solid var(--cork);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        #overlay h2 {
+            font-family: "JetBrains Mono", monospace;
+            font-size: 24px;
+            color: var(--ink);
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--ink);
+            padding-bottom: 10px;
+        }
+
+        #overlay p {
+            font-size: 14px;
+            color: var(--ink);
+            line-height: 1.6;
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            font-size: 15px;
+            background: var(--ink);
+            color: var(--paper);
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: "JetBrains Mono", monospace;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: var(--cork-deep);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+        }
+
+        .btn.pulse-slow {
+            animation: btnPulseSlow 2.5s ease-in-out infinite;
+        }
+
+        @keyframes btnPulseSlow {
+            0% { box-shadow: 0 0 0 0 rgba(244, 217, 160, 0.4); }
+            50% { box-shadow: 0 0 15px 5px rgba(244, 217, 160, 0.2); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 217, 160, 0.4); }
+        }
+
+        #finish-early-btn {
+            background: var(--ink);
+            color: var(--lamp);
+            border: 1px solid var(--lamp);
+            font-size: 11px;
+            padding: 8px 12px;
+            width: auto;
+            letter-spacing: 0px;
+            white-space: nowrap;
+        }
+
+        #finish-early-btn:hover {
+            background: var(--lamp);
+            color: var(--ink);
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container" id="app-container">
+    
+    <!-- 顶部 HUD -->
+    <div id="hud">
+        <div class="hud-header">
+            <div class="hud-title">MEMORY PROTOCOL</div>
+        </div>
+        
+        <div class="info-box">
+            <span>T-MINUS</span>
+            <span class="info-value highlight" id="time-display">60.0s</span>
+        </div>
+
+        <div class="info-box">
+            <span>FRAGMENTS</span>
+            <span class="info-value"><span id="clue-display" class="highlight">0</span> / 4</span>
+        </div>
+
+        <div id="hud-bottom-row">
+            <div id="fragments-container">
+                <div class="frag-slot" id="frag-1">🍷</div>
+                <div class="frag-slot" id="frag-2">📸</div>
+                <div class="frag-slot" id="frag-3">👠</div>
+                <div class="frag-slot" id="frag-4">🐍</div>
+            </div>
+            <!-- Extract Data Button moved here -->
+            <button class="btn" id="finish-early-btn" style="display:none;" onclick="endGame()">Extract Data</button>
+        </div>
+    </div>
+
+    <!-- 游戏主区域 -->
+    <div id="play-area">
+        <div id="danger-zone">
+            <div id="danger-zone-text">⚠️ CAUTION: MEMORY DECAY IMMINENT</div>
+        </div>
+    </div>
+
+    <!-- 字幕区域 -->
+    <div id="subtitle-container">
+        <div class="avatar-box" id="subtitle-avatar">🥃</div>
+        <div id="subtitle-text" class="subtitle-text"></div>
+    </div>
+    
+    <!-- 开始/结算面板 -->
+    <div id="overlay">
+        <div class="overlay-panel">
+            <h2 id="overlay-title">MIND MAZE</h2>
+            <div id="overlay-desc">
+                <p>
+                    Arthur, you are being interrogated. Your memory is shattered by alcohol and drugs.
+                </p>
+                <p>
+                    Tap the floating <span style="font-weight:bold;">memory notes</span> to retrieve lost clues. There are <span style="color:var(--red-thread); font-weight:bold;">4 key fragments</span> in total.
+                </p>
+                <p>
+                    Missing notes will accelerate cognitive decay.<br>
+                    <span style="color:var(--red-thread); font-style:italic; font-size:13px;">There might be something darker hidden inside... if you're fast enough.</span>
+                </p>
+                <p style="text-align:center; font-family:'JetBrains Mono'; margin-bottom: 0;">
+                    LIMIT: 20 SECONDS
+                </p>
+            </div>
+            <button class="btn" id="start-btn" onclick="startGame()">INITIATE PROTOCOL</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const GAME_DURATION = 20; 
+    const MAX_SCORE = 100;
+    const POINTS_HIT = 5;
+    const POINTS_MISS = 5;
+
+    let score = 0;
+    let penaltyAccumulator = 0;
+    let timeLeft = GAME_DURATION;
+    let gameInterval = null;
+    let spawnInterval = null;
+    let dangerParticleInterval = null;
+    let isPlaying = false;
+    let snakeCount = 0;
+    let unlocked = { frag1: false, frag2: false, frag3: false, frag4: false, fullScoreSubtitle: false };
+    let subtitleTimeout = null;
+
+    const timeDisplay = document.getElementById('time-display');
+    const clueDisplay = document.getElementById('clue-display');
+    const playArea = document.getElementById('play-area');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayDesc = document.getElementById('overlay-desc');
+    const startBtn = document.getElementById('start-btn');
+    const playAreaRect = playArea.getBoundingClientRect(); // will be updated dynamically
+
+    function startGame() {
+        overlay.style.display = 'none';
+        const finishBtn = document.getElementById('finish-early-btn');
+        finishBtn.style.display = 'none';
+        finishBtn.classList.remove('pulse-slow');
+        score = 0;
+        penaltyAccumulator = 0;
+        timeLeft = GAME_DURATION;
+        snakeCount = 0;
+        unlocked = { frag1: false, frag2: false, frag3: false, frag4: false, fullScoreSubtitle: false };
+        isPlaying = true;
+        
+        // 保留 danger-zone，移除之前的泡泡
+        playArea.innerHTML = `
+            <div id="danger-zone">
+                <div id="danger-zone-text">⚠️ CAUTION: MEMORY DECAY IMMINENT</div>
+            </div>
+        `;
+        
+        updateUI();
+        resetFragments();
+
+        gameInterval = setInterval(() => {
+            timeLeft -= 0.1;
+            if (timeLeft <= 0) {
+                timeLeft = 0;
+                endGame();
+            }
+            updateUI();
+        }, 100);
+
+        startSpawning();
+        
+        // 启动红色危险区粒子效果
+        dangerParticleInterval = setInterval(() => {
+            if (!isPlaying) return;
+            createDangerParticle();
+        }, 150);
+    }
+
+    function updateUI() {
+        timeDisplay.innerText = timeLeft.toFixed(1) + 's';
+        
+        if (score >= 25 && !unlocked.frag1) {
+            unlocked.frag1 = true;
+            activateFragment(1, '🍷');
+            showSubtitle("The drink... someone laced it before I blacked out.", '🍷');
+        } else if (score < 25 && unlocked.frag1) {
+            unlocked.frag1 = false;
+            deactivateFragment(1, '🍷');
+            showPainSubtitle();
+        }
+
+        if (score >= 50 && !unlocked.frag2) {
+            unlocked.frag2 = true;
+            activateFragment(2, '📸');
+            showSubtitle("That photo setup... it was a deliberate alibi.", '📸');
+        } else if (score < 50 && unlocked.frag2) {
+            unlocked.frag2 = false;
+            deactivateFragment(2, '📸');
+            showPainSubtitle();
+        }
+
+        if (score >= 75 && !unlocked.frag3) {
+            unlocked.frag3 = true;
+            activateFragment(3, '👠');
+            showSubtitle("Red clay on the heel. She was at the outskirts, not here.", '👠');
+        } else if (score < 75 && unlocked.frag3) {
+            unlocked.frag3 = false;
+            deactivateFragment(3, '👠');
+            showPainSubtitle();
+        }
+
+        if (snakeCount >= 5 && !unlocked.frag4) {
+            unlocked.frag4 = true;
+            activateFragment(4, '🐍', true);
+            showSubtitle("That tattoo... VIPER. She's a professional.", '🐍');
+        }
+
+        let clues = 0;
+        if (unlocked.frag1) clues++;
+        if (unlocked.frag2) clues++;
+        if (unlocked.frag3) clues++;
+        if (unlocked.frag4) clues++;
+        clueDisplay.innerText = clues;
+
+        const finishBtn = document.getElementById('finish-early-btn');
+        if (score >= 100) {
+            if (!unlocked.fullScoreSubtitle) {
+                unlocked.fullScoreSubtitle = true;
+                showSubtitle("These pieces are enough.");
+            }
+            if (finishBtn.style.display !== 'block') {
+                finishBtn.style.display = 'block';
+                finishBtn.className = 'btn pulse-slow';
+            }
+        } else {
+            if (finishBtn.style.display === 'block') {
+                finishBtn.style.display = 'none';
+                unlocked.fullScoreSubtitle = false; // Reset to show again if score goes back up
+            }
+        }
+    }
+
+    function showPainSubtitle() {
+        const painLines = [
+            "Ugh... my head is splitting. The memory is slipping...",
+            "It's fading... I can't hold onto the image.",
+            "Dizzy... my thoughts are getting muddy again.",
+            "The headache... it's tearing me apart.",
+            "Can't focus... what was I thinking?",
+            "My vision is blurring... need to concentrate.",
+            "Focus, Arthur, focus! Don't let it fade!"
+        ];
+        const randomLine = painLines[Math.floor(Math.random() * painLines.length)];
+        showSubtitle(randomLine, "🤕");
+    }
+
+    function showSubtitle(text, avatar = "🥃") {
+        const containerEl = document.getElementById('subtitle-container');
+        const textEl = document.getElementById('subtitle-text');
+        const avatarEl = document.getElementById('subtitle-avatar');
+        
+        textEl.innerText = text;
+        avatarEl.innerText = avatar;
+        
+        containerEl.classList.add('show');
+        
+        if (subtitleTimeout) clearTimeout(subtitleTimeout);
+        subtitleTimeout = setTimeout(() => {
+            containerEl.classList.remove('show');
+        }, 3500);
+    }
+
+    function activateFragment(id, emoji, isSnake = false) {
+        const slot = document.getElementById('frag-' + id);
+        slot.classList.add('active');
+        if (isSnake) slot.classList.add('active-snake');
+        slot.innerText = emoji;
+    }
+
+    function deactivateFragment(id, emoji) {
+        const slot = document.getElementById('frag-' + id);
+        slot.classList.remove('active');
+        slot.classList.remove('active-snake');
+        slot.innerText = emoji;
+    }
+
+    function resetFragments() {
+        const emojis = ['', '🍷', '📸', '👠', '🐍'];
+        for(let i=1; i<=4; i++) {
+            let el = document.getElementById('frag-' + i);
+            el.className = 'frag-slot';
+            el.innerText = emojis[i];
+        }
+    }
+
+    function startSpawning() {
+        let spawnRate = 550; // 微调速度以适配移动端空间
+        spawnInterval = setInterval(() => {
+            if (!isPlaying) return;
+            createBubble();
+        }, spawnRate);
+    }
+
+    function createDangerParticle() {
+        const dangerZone = document.getElementById('danger-zone');
+        if (!dangerZone) return;
+        
+        const particle = document.createElement('div');
+        particle.className = 'danger-particle';
+        
+        // Random horizontal position, size, and duration
+        const size = Math.random() * 4 + 2; // 2px to 6px
+        particle.style.width = size + 'px';
+        particle.style.height = size + 'px';
+        particle.style.left = (Math.random() * 100) + '%';
+        particle.style.animationDuration = (Math.random() * 1.5 + 1.0) + 's';
+        
+        dangerZone.appendChild(particle);
+        
+        // Remove after animation completes to avoid memory leak
+        setTimeout(() => {
+            if(particle.parentNode) particle.parentNode.removeChild(particle);
+        }, 2500); // Max animation duration
+    }
+
+    function createBubble() {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        
+        // 适应当前 playArea 宽度
+        const currentWidth = playArea.clientWidth;
+        const maxX = currentWidth - 65; 
+        const xPos = Math.random() * Math.max(0, maxX);
+        bubble.style.left = xPos + 'px';
+        
+        const animDuration = 4.0 + (Math.random() * 1.5);
+        bubble.style.animationDuration = animDuration + 's';
+        
+        let emojiChoice;
+        if (Math.random() < 0.15) {
+            emojiChoice = '🐍';
+        } else {
+            const normalEmojis = ['🍷', '📸', '👠'];
+            emojiChoice = normalEmojis[Math.floor(Math.random() * normalEmojis.length)];
+        }
+        
+        const icon = document.createElement('div');
+        icon.className = 'emoji-icon';
+        icon.innerText = emojiChoice;
+        bubble.appendChild(icon);
+        
+        if (emojiChoice === '🐍') {
+            bubble.classList.add('bubble-snake');
+        }
+
+        // 支持触屏与鼠标
+        const handleInteraction = function(e) {
+            e.preventDefault();
+            if (!isPlaying) return;
+            if(this.classList.contains('burst') || this.classList.contains('fail-burst')) return;
+            
+            const rect = this.getBoundingClientRect();
+            const parentRect = playArea.getBoundingClientRect();
+            this.style.top = (rect.top - parentRect.top) + 'px';
+            this.style.animation = 'none';
+            void this.offsetWidth;
+
+            this.classList.add('burst');
+            
+            let clientX, clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            addScore(POINTS_HIT, clientX, clientY);
+            
+            if (this.classList.contains('bubble-snake')) {
+                snakeCount++;
+                updateUI();
+            }
+            
+            setTimeout(() => {
+                if(this.parentNode) this.parentNode.removeChild(this);
+            }, 300);
+        };
+
+        bubble.addEventListener('mousedown', handleInteraction);
+        bubble.addEventListener('touchstart', handleInteraction, {passive: false});
+
+        bubble.addEventListener('animationend', function(e) {
+            if (!isPlaying) return;
+            if (e.animationName === 'floatUp' && !this.classList.contains('burst') && !this.classList.contains('fail-burst')) {
+                this.style.top = '10px';
+                this.style.animation = 'none';
+                void this.offsetWidth;
+
+                this.classList.add('fail-burst');
+                
+                // 扣分
+                const parentRect = playArea.getBoundingClientRect();
+                addScore(-POINTS_MISS, parentRect.left + parseFloat(this.style.left) + 30, parentRect.top + 20);
+                
+                setTimeout(() => {
+                    if(this.parentNode) this.parentNode.removeChild(this);
+                }, 500);
+            }
+        });
+
+        playArea.appendChild(bubble);
+    }
+
+    function addScore(points, clientX, clientY) {
+        score += points;
+        if (score < 0) score = 0;
+        if (score > MAX_SCORE) score = MAX_SCORE;
+        
+        if (points < 0) {
+            penaltyAccumulator += Math.abs(points);
+            if (penaltyAccumulator >= 20) {
+                penaltyAccumulator = 0;
+                showPainSubtitle();
+            }
+        }
+        
+        updateUI();
+
+        const parentRect = playArea.getBoundingClientRect();
+        
+        const popup = document.createElement('div');
+        popup.className = 'score-popup ' + (points > 0 ? 'score-plus' : 'score-minus');
+        popup.innerText = points > 0 ? '+' + points : points;
+        
+        // 计算相对于 playArea 的位置
+        const localX = clientX - parentRect.left - 10;
+        const localY = clientY - parentRect.top - 20;
+        
+        popup.style.left = localX + 'px'; 
+        popup.style.top = localY + 'px';
+        
+        playArea.appendChild(popup);
+        
+        setTimeout(() => {
+            if(popup.parentNode) popup.parentNode.removeChild(popup);
+        }, 1000);
+    }
+
+    function endGame() {
+        isPlaying = false;
+        clearInterval(gameInterval);
+        clearInterval(spawnInterval);
+        clearInterval(dangerParticleInterval);
+        
+        const bubbles = document.querySelectorAll('.bubble');
+        bubbles.forEach(b => {
+            b.style.animationPlayState = 'paused';
+            b.style.pointerEvents = 'none';
+        });
+
+        let title = "";
+        let desc = "";
+        
+        let clues = 0;
+        if (unlocked.frag1) clues++;
+        if (unlocked.frag2) clues++;
+        if (unlocked.frag3) clues++;
+        if (unlocked.frag4) clues++;
+        
+        if (score < 60) {
+            title = "EXTRACTION FAILED";
+            desc = "<p style='text-align:center; font-family:\"JetBrains Mono\", monospace;'>Clues Recovered: " + clues + "/4</p><p>\"Save this nonsense for the judge. You're about to be <span style='color:var(--red-thread); font-weight:bold;'>arrested</span>, suspect.\"</p>";
+        } else if (score < 100 || snakeCount < 5) {
+            title = "PARTIAL RECOVERY";
+            desc = "<p style='text-align:center; font-family:\"JetBrains Mono\", monospace;'>Clues Recovered: " + clues + "/4</p><p>\"Looks like your pickled brain still works sometimes... I'm going to <span style='color:var(--red-thread); font-weight:bold;'>that bar</span>.\"</p>";
+        } else {
+            title = "PERFECT RECALL";
+            desc = "<p style='text-align:center; font-family:\"JetBrains Mono\", monospace;'>Clues Recovered: " + clues + "/4 | <span style='color:var(--red-thread)'>VIPER UNLOCKED</span></p><p>\"Congratulations, you didn't just clear your name, you might have pulled out a <span style='color:var(--red-thread); font-weight:bold;'>big fish</span>.\"</p>";
+        }
+
+        setTimeout(() => {
+            overlayTitle.innerText = title;
+            overlayDesc.innerHTML = desc;
+            startBtn.innerText = "ACKNOWLEDGE";
+            overlay.style.display = 'flex';
+        }, 1000);
+    }
+
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = `
+        @keyframes floatUp {
+            0% { top: 100%; opacity: 0; transform: scale(0.6); }
+            10% { opacity: 1; transform: scale(1); }
+            85% { opacity: 1; }
+            100% { top: 5px; opacity: 0.8; }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+
+</script>
+
+</body>
+</html>
